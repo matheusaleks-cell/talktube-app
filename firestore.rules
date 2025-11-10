@@ -1,0 +1,160 @@
+/**
+ * @fileoverview Firestore Security Rules for Talktube.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a strict user-ownership model for private data, while
+ * providing role-based access for administrative and public-facing data.
+ *
+ * Data Structure:
+ * - /users/{userId}: Private user data, only accessible by the owner.
+ * - /admins/{userId}: An Access Control List (ACL) for admin privileges.
+ * - /interpreters/{interpreterId}: Publicly readable profiles for interpreters.
+ * - /meetings/{meetingId}: Public data for meeting signaling.
+ * - /users/{userId}/...: User-owned subcollections like meetings.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * @description Checks if the request is authenticated.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * @description Checks if the requested user ID matches the authenticated user's ID.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    /**
+     * @description Checks if the authenticated user has an entry in the 'admins' collection, granting them admin privileges.
+     */
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+    
+    /**
+     * @description
+     * Stores private user information. Strictly owned by the user.
+     * @path /users/{userId}
+     * @allow (get, update, delete) User can manage their own document.
+     * @allow (create) User can create their own document.
+     * @allow (list) Admins can list all users.
+     */
+    match /users/{userId} {
+      allow get, update, delete: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId);
+      allow list: if isAdmin(); 
+    }
+
+    /**
+     * @description
+     * Collection acting as an Access Control List for admins.
+     * @path /admins/{userId}
+     * @allow (read, write) Only other admins can manage this list.
+     */
+    match /admins/{userId} {
+      allow read, write: if isAdmin();
+    }
+
+    /**
+     * @description
+     * Stores public profiles for interpreters.
+     * @path /interpreters/{interpreterId}
+     * @allow (list, get) Any authenticated user can view interpreter profiles.
+     * @allow (create) The interpreter can create their own profile.
+     * @allow (update) The interpreter can update their own profile, or an admin can update it (e.g., to approve).
+     * @deny (delete) Deletion is disallowed for safety; use a status field instead.
+     */
+    match /interpreters/{interpreterId} {
+        allow list, get: if isSignedIn();
+        allow create: if isOwner(interpreterId);
+        allow update: if isOwner(interpreterId) || isAdmin();
+        allow delete: if false;
+    }
+
+    /**
+     * @description
+     * Stores top-level meeting documents for simpler lookup and WebRTC signaling.
+     * Subcollections inside manage the real-time connection establishment.
+     */
+    match /meetings/{meetingId} {
+      // Allow any signed-in user to read the main meeting doc.
+      allow get: if isSignedIn();
+      // Allow the owner to create/update the meeting doc.
+      allow write: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      
+      // Rules for members subcollection
+      match /members/{memberId} {
+        allow read, create: if isSignedIn();
+        // A user can remove themselves or the meeting owner can remove them.
+        allow delete: if isOwner(memberId) || isOwner(get(/databases/$(database)/documents/meetings/$(meetingId)).data.ownerId); 
+      }
+      
+      // Signaling collections: offers and answers
+      match /offers/{calleeId} {
+        allow read, write: if isOwner(calleeId) || isOwner(request.resource.data.callerId);
+      }
+      
+      match /answers/{callerId} {
+         allow read, write: if isOwner(callerId) || isOwner(get(/databases/$(database)/documents/offers/$(callerId)).data.callerId);
+      }
+      
+      // ICE candidates sub-collections
+      match /members/{memberId}/{candidatesCollection=**} {
+          allow create: if isOwner(memberId);
+          allow read: if isSignedIn();
+      }
+
+      // Chat messages sub-collection
+      match /messages/{messageId} {
+        allow read, create: if isSignedIn();
+      }
+    }
+
+
+    /**
+     * @description
+     * Allows users to manage their own meetings.
+     * @path /users/{userId}/meetings/{meetingId}
+     * @principle Enforces document ownership for all operations.
+     */
+    match /users/{userId}/meetings/{meetingId} {
+      allow read, write: if isOwner(userId);
+
+      /**
+       * @description
+       * Allows users to manage the languages supported in their meetings.
+       * @path /users/{userId}/meetings/{meetingId}/meetingLanguages/{meetingLanguageId}
+       * @principle Enforces document ownership for all operations.
+       */
+      match /meetingLanguages/{meetingLanguageId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      /**
+       * @description
+       * Allows users to manage reminders for their own meetings.
+       * @path /users/{userId}/meetings/{meetingId}/reminders/{reminderId}
+       * @principle Enforces document ownership for all operations.
+       */
+      match /reminders/{reminderId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      /**
+       * @description
+       * Allows users to manage recordings of their own meetings.
+       * @path /users/{userId}/meetings/{meetingId}/recordings/{recordingId}
+       * @principle Enforces document ownership for all operations.
+       */
+      match /recordings/{recordingId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+  }
+}
