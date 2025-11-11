@@ -1,0 +1,485 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user of the Talktube platform.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the User entity."
+        },
+        "email": {
+          "type": "string",
+          "description": "User's email address.",
+          "format": "email"
+        },
+        "name": {
+          "type": "string",
+          "description": "User's full name."
+        },
+        "preferredLanguage": {
+          "type": "string",
+          "description": "User's preferred language for the application."
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "name",
+        "preferredLanguage"
+      ]
+    },
+    "Meeting": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Meeting",
+      "type": "object",
+      "description": "Represents a meeting scheduled on the Talktube platform.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Meeting entity."
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the meeting."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the meeting."
+        },
+        "startTime": {
+          "type": "string",
+          "description": "Date and time when the meeting starts.",
+          "format": "date-time"
+        },
+        "duration": {
+          "type": "number",
+          "description": "Duration of the meeting in minutes."
+        },
+        "timeZone": {
+          "type": "string",
+          "description": "Time zone of the meeting."
+        },
+        "primaryLanguage": {
+          "type": "string",
+          "description": "Primary language of the meeting."
+        },
+        "interpreterType": {
+          "type": "string",
+          "description": "Type of interpreter used for the meeting (e.g., human, automatic, hybrid)."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N Meeting). The ID of the user who created the meeting."
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "description",
+        "startTime",
+        "duration",
+        "timeZone",
+        "primaryLanguage",
+        "interpreterType",
+        "userId"
+      ]
+    },
+    "Interpreter": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Interpreter",
+      "type": "object",
+      "description": "Represents a publicly-visible interpreter profile.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Interpreter entity. Should match the user's UID."
+        },
+        "name": {
+          "type": "string",
+          "description": "Interpreter's full name."
+        },
+        "email": {
+          "type": "string",
+          "description": "Interpreter's contact email.",
+          "format": "email"
+        },
+        "languages": {
+          "type": "array",
+          "description": "List of languages the interpreter is proficient in.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "status": {
+          "type": "string",
+          "enum": ["Pendente", "Aprovado", "Rejeitado"],
+          "description": "Approval status of the interpreter."
+        },
+        "hourlyRate": {
+          "type": "number",
+          "description": "Hourly rate of the interpreter."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "email",
+        "languages",
+        "status"
+      ]
+    },
+    "MeetingLanguage": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "MeetingLanguage",
+      "type": "object",
+      "description": "Represents the languages supported for a particular meeting.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the MeetingLanguage entity."
+        },
+        "meetingId": {
+          "type": "string",
+          "description": "Reference to Meeting. (Relationship: Meeting 1:N MeetingLanguage)"
+        },
+        "language": {
+          "type": "string",
+          "description": "The language supported in this meeting"
+        }
+      },
+      "required": [
+        "id",
+        "meetingId",
+        "language"
+      ]
+    },
+    "Reminder": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Reminder",
+      "type": "object",
+      "description": "Represents a reminder for a scheduled meeting.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Reminder entity."
+        },
+        "meetingId": {
+          "type": "string",
+          "description": "Reference to Meeting. (Relationship: Meeting 1:N Reminder)"
+        },
+        "timeBeforeMeeting": {
+          "type": "number",
+          "description": "Time before the meeting (in minutes) when the reminder should be sent."
+        },
+        "deliveryMethod": {
+          "type": "string",
+          "description": "Method used to deliver the reminder (e.g., email, push notification)."
+        },
+        "sentAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the reminder was sent.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "meetingId",
+        "timeBeforeMeeting",
+        "deliveryMethod"
+      ]
+    },
+    "Recording": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Recording",
+      "type": "object",
+      "description": "Represents a recording of a past meeting.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Recording entity."
+        },
+        "meetingId": {
+          "type": "string",
+          "description": "Reference to Meeting. (Relationship: Meeting 1:N Recording)"
+        },
+        "fileUrl": {
+          "type": "string",
+          "description": "URL where the recording file is stored.",
+          "format": "uri"
+        },
+        "transcript": {
+          "type": "string",
+          "description": "Transcript of the meeting recording."
+        }
+      },
+      "required": [
+        "id",
+        "meetingId",
+        "fileUrl"
+      ]
+    },
+    "AdminUser": {
+       "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "AdminUser",
+      "type": "object",
+      "description": "Represents a user with administrative privileges.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the User entity."
+        },
+        "email": {
+          "type": "string",
+          "description": "User's email address.",
+          "format": "email"
+        },
+        "name": {
+          "type": "string",
+          "description": "User's full name."
+        },
+        "preferredLanguage": {
+          "type": "string",
+          "description": "User's preferred language for the application."
+        },
+        "role": {
+          "type": "string",
+          "description": "User's role within the platform.",
+          "enum": ["Admin"]
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "name",
+        "preferredLanguage",
+        "role"
+      ]
+    },
+     "Message": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Message",
+      "type": "object",
+      "description": "Represents a chat message within a meeting.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Message entity."
+        },
+        "senderId": {
+          "type": "string",
+          "description": "The UID of the user who sent the message."
+        },
+        "senderName": {
+          "type": "string",
+          "description": "The display name of the user who sent the message."
+        },
+        "text": {
+          "type": "string",
+          "description": "The content of the chat message."
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The server timestamp when the message was created."
+        }
+      },
+      "required": [
+        "id",
+        "senderId",
+        "senderName",
+        "text",
+        "timestamp"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores private user profile information, accessible only by the user themselves.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/admins/{userId}",
+        "definition": {
+          "entityName": "AdminUser",
+          "schema": {
+            "$ref": "#/backend/entities/AdminUser"
+          },
+          "description": "Stores profiles for admin users. Used to grant elevated privileges in security rules.",
+          "params": [
+             {
+              "name": "userId",
+              "description": "The unique identifier of the admin user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/interpreters/{interpreterId}",
+        "definition": {
+          "entityName": "Interpreter",
+          "schema": {
+            "$ref": "#/backend/entities/Interpreter"
+          },
+          "description": "Stores public profiles for interpreters. Readable by all authenticated users, writable only by admins or the interpreter themselves.",
+          "params": [
+            {
+              "name": "interpreterId",
+              "description": "The unique identifier of the interpreter, matching their user ID."
+            }
+          ]
+        }
+      },
+       {
+        "path": "/meetings/{meetingId}",
+        "definition": {
+          "entityName": "Meeting",
+          "schema": {
+            "$ref": "#/backend/entities/Meeting"
+          },
+          "description": "Stores public data for a meeting, primarily for WebRTC signaling. Accessible by all authenticated participants.",
+          "params": [
+            {
+              "name": "meetingId",
+              "description": "The unique identifier of the meeting."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/meetings/{meetingId}/messages/{messageId}",
+        "definition": {
+          "entityName": "Message",
+          "schema": {
+            "$ref": "#/backend/entities/Message"
+          },
+          "description": "Stores chat messages for a specific meeting. Accessible by all participants.",
+          "params": [
+            {
+              "name": "meetingId",
+              "description": "The unique identifier of the meeting."
+            },
+            {
+              "name": "messageId",
+              "description": "The unique identifier of the chat message."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/meetings/{meetingId}",
+        "definition": {
+          "entityName": "Meeting",
+          "schema": {
+            "$ref": "#/backend/entities/Meeting"
+          },
+          "description": "Stores private meeting details for a specific user. Only the user who created the meeting can access it.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user who created the meeting."
+            },
+            {
+              "name": "meetingId",
+              "description": "The unique identifier of the meeting."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/meetings/{meetingId}/meetingLanguages/{meetingLanguageId}",
+        "definition": {
+          "entityName": "MeetingLanguage",
+          "schema": {
+            "$ref": "#/backend/entities/MeetingLanguage"
+          },
+          "description": "Stores the languages supported in a specific meeting. Only the user who owns the meeting can access these languages.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user who created the meeting."
+            },
+            {
+              "name": "meetingId",
+              "description": "The unique identifier of the meeting."
+            },
+            {
+              "name": "meetingLanguageId",
+              "description": "The unique identifier of the meeting language."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/meetings/{meetingId}/reminders/{reminderId}",
+        "definition": {
+          "entityName": "Reminder",
+          "schema": {
+            "$ref": "#/backend/entities/Reminder"
+          },
+          "description": "Stores reminders for a specific meeting. Only the user who created the meeting can access its reminders.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user who created the meeting."
+            },
+            {
+              "name": "meetingId",
+              "description": "The unique identifier of the meeting."
+            },
+            {
+              "name": "reminderId",
+              "description": "The unique identifier of the reminder."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/meetings/{meetingId}/recordings/{recordingId}",
+        "definition": {
+          "entityName": "Recording",
+          "schema": {
+            "$ref": "#/backend/entities/Recording"
+          },
+          "description": "Stores recordings of a specific meeting. Only the user who created the meeting can access its recordings.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user who created the meeting."
+            },
+            {
+              "name": "meetingId",
+              "description": "The unique identifier of the meeting."
+            },
+            {
+              "name": "recordingId",
+              "description": "The unique identifier of the recording."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore data structure is redesigned to support a multilingual meeting platform (Talktube) with a focus on security and scalability. The key change is the separation of 'users', 'admins', and 'interpreters' into distinct collections.\n\n**Authorization & Security:**\n\n*   **/users/{userId}:** This collection is strictly for private user data. Rules enforce that only the authenticated user can access their own document. Listing the entire collection is prohibited to protect user privacy.\n*   **/admins/{userId}:** This collection acts as an access control list. A user's existence in this collection grants them admin privileges across the application. This avoids storing a 'role' field on the user document, which would require a `get()` call in security rules and violate the principle that rules are not filters.\n*   **/interpreters/{interpreterId}:** This collection stores public-facing profiles for interpreters. It is readable by any authenticated user, allowing the 'Find an Interpreter' feature to work without granting broad access to private user data. Write access is restricted to admins (for approvals) and the interpreter themselves.\n\n**Scalability & Performance:**\n\n*   Segregating interpreters into their own collection makes querying for them highly efficient. The client application can query the `/interpreters` collection directly without needing complex and insecure queries on the `/users` collection.\n*   User-owned data (Meetings, Reminders) remains nested under `/users/{userId}`, which clearly defines ownership and simplifies access control rules.\n*   A new top-level `/meetings/{meetingId}` collection is added to handle public-facing data for WebRTC signaling and chat. This allows participants to exchange connection information without accessing each other's private data, resolving critical security rule constraints."
+  }
+}

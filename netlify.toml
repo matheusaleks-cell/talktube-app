@@ -1,9 +1,7 @@
 # Configurações para a Netlify
 
 [build]
-  # Comando para construir o projeto
-  command = "next build"
-  
+  # O comando de build foi removido. O plugin do Next.js cuidará disso.
   # Diretório onde os arquivos estáticos e as funções serverless são gerados
   publish = ".next"
 
