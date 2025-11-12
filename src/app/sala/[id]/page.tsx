@@ -152,6 +152,9 @@ export default function MeetingRoomPage() {
 
   const [audioDevices, setAudioDevices] = React.useState<MediaDeviceInfo[]>([]);
   const [videoDevices, setVideoDevices] = React.useState<MediaDeviceInfo[]>([]);
+  
+  // Flag para controle de execução única
+  const isSetupRunning = React.useRef(false); 
 
   const meetingDocRef = useMemoFirebase(
     () => (firestore && meetingId ? doc(firestore, 'meetings', meetingId) : null),
@@ -175,13 +178,14 @@ export default function MeetingRoomPage() {
     }
   }, [messages]);
 
-  // CORREÇÃO 1: Adiciona shouldRedirect para controlar o redirecionamento.
+  // CORREÇÃO: Limpeza com controle de redirecionamento (shouldRedirect)
   const cleanup = React.useCallback(async (shouldRedirect: boolean = true) => {
     console.log('Running cleanup...');
 
     unsubscribes.current.forEach((unsub) => unsub());
     unsubscribes.current = [];
     
+    // Garantir que as trilhas sejam paradas
     localStream?.getTracks().forEach((track) => track.stop());
     setLocalStream(null);
 
@@ -209,11 +213,10 @@ export default function MeetingRoomPage() {
       }
     }
 
-    // Apenas redireciona se for um evento de "saída" intencional ou de desmontagem normal
     if (shouldRedirect) {
         router.push('/dashboard/meetings');
     }
-  }, [user, meetingDocRef, router, localStream, firestore]);
+  }, [user, meetingDocRef, router, firestore]); // localStream removido das dependências para evitar loop de limpeza
   
   const replaceTrack = React.useCallback((stream: MediaStream, kind: 'video' | 'audio') => {
       const newTrack = kind === 'video' ? stream.getVideoTracks()[0] : stream.getAudioTracks()[0];
@@ -279,35 +282,39 @@ export default function MeetingRoomPage() {
     }
   }, [localStream]);
 
-  // CORREÇÃO 2: Modifica o useEffect principal
+  // useEffect principal
   React.useEffect(() => {
-    if (isUserLoading) return;
-    if (!user) {
-      router.push(`/login?redirect=/sala/${meetingId}`);
-      return;
-    }
-    if (!firestore || !meetingId) {
-      setPageLoading(false);
-      return;
+    // PROTEÇÃO CRÍTICA 1: Evitar que o setup rode se já estiver rodando ou se não houver user/firestore
+    if (isSetupRunning.current || isUserLoading || !user || !firestore || !meetingId) {
+        if (!user && !isUserLoading) {
+            router.push(`/login?redirect=/sala/${meetingId}`);
+        }
+        return;
     }
 
+    // Marca o setup como rodando
+    isSetupRunning.current = true;
+    
     setPageLoading(false);
 
     let localMediaStream: MediaStream | null = null;
-
+    let setupComplete = false;
+    
     const setupMediaAndJoin = async () => {
       if (!firestore || !user || !meetingDocRef) return;
 
       try {
-        // Tenta adquirir permissão de mídia
+        // 1. ADQUIRIR MÍDIA
         localMediaStream = await navigator.mediaDevices.getUserMedia({
           video: true,
           audio: true,
         });
         setLocalStream(localMediaStream);
         setHasMediaPermission(true);
-        console.log("LOG: Media acquired successfully."); // Log de sucesso
+        console.log("LOG: Media acquired successfully.");
+
       } catch (error) {
+        // Captura erros de permissão de mídia
         console.error('LOG: Error accessing media devices. Redirecting to error screen.', error);
         setHasMediaPermission(false);
         toast({
@@ -317,6 +324,7 @@ export default function MeetingRoomPage() {
             'Precisamos de acesso à sua câmera e microfone para entrar na sala.',
         });
         cleanup(false); // Limpa conexões, NÃO redireciona, exibe alerta
+        isSetupRunning.current = false; // Reset da flag
         return;
       }
       
@@ -333,6 +341,7 @@ export default function MeetingRoomPage() {
       };
       await getDevices();
 
+      // 2. INSCREVER-SE COMO MEMBRO NO FIRESTORE (Ponto Crítico)
       const memberDocRef = doc(meetingDocRef, 'members', user.uid);
       const memberData = {
         name: user.displayName || 'Anônimo',
@@ -340,21 +349,23 @@ export default function MeetingRoomPage() {
         joinedAt: serverTimestamp(),
       };
       
-      // CORREÇÃO 3: Lógica de gravação de membros à prova de falhas (Permissão de Regras)
       try {
         console.log("LOG: Attempting to create member document:", memberDocRef.path);
         await setDoc(memberDocRef, memberData);
         console.log("LOG: Member document created successfully.");
       } catch (error) {
+        // CORREÇÃO: Captura falha de Regra de Segurança do Firestore
         console.error('FATAL: Failed to create member document (Security Rules Issue):', error);
         
-        // A regra de segurança falhou APÓS o login (Security Rules Issue)
+        // Se a gravação falhar aqui, paramos o stream e exibimos o alerta
+        localMediaStream?.getTracks().forEach(track => track.stop()); // Parar câmera/mic
         toast({ 
             variant: 'destructive', 
             title: 'Falha de Permissão Crítica', 
             description: 'O Firebase bloqueou a entrada na sala. Verifique as Regras do Firestore!' 
         });
-        cleanup(false); 
+        cleanup(false); // Limpa conexões WebRTC/Firestore, mas NÃO redireciona
+        isSetupRunning.current = false; // Reset da flag
         return;
       }
 
@@ -402,110 +413,26 @@ export default function MeetingRoomPage() {
           }
         }
       );
-      // CORREÇÃO 4: Nome da variável corrigido (sem o 's' extra, se houver)
       unsubscribes.current.push(offersUnsubscribe);
+      
+      setupComplete = true; // Marca que o setup foi concluído com sucesso
     };
 
-    const createPeerConnection = (peerId: string, stream: MediaStream) => {
-      if (!user || !stream || !meetingDocRef) return;
-
-      const pc = new RTCPeerConnection(servers);
-      peerConnections.current.set(peerId, pc);
-
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-      
-      pc.ontrack = (event) => {
-        setRemoteStreams((prev) => ({ ...prev, [peerId]: event.streams[0] }));
-      };
-
-      const callerCandidatesCollection = collection(doc(meetingDocRef, 'members', user.uid), 'callerCandidates');
-      pc.onicecandidate = (event) => {
-        if (event.candidate) {
-          addDoc(callerCandidatesCollection, event.candidate.toJSON());
-        }
-      };
-
-      pc.createOffer()
-        .then((offer) => {
-          pc.setLocalDescription(offer);
-          const offerPayload = { offer, callerId: user.uid, calleeId: peerId };
-          const offerDocRef = doc(collection(meetingDocRef, 'offers'));
-          setDoc(offerDocRef, offerPayload);
+    setupMediaAndJoin()
+        .finally(() => {
+            // Garante que o flag seja resetado se algo falhar
+            if (!setupComplete) {
+                isSetupRunning.current = false;
+            }
         });
 
-      const answersUnsubscribe = onSnapshot(
-        query(collection(meetingDocRef, 'answers'), where('callerId', '==', user.uid), where('from', '==', peerId)),
-        async (snapshot) => {
-          for (const docSnapshot of snapshot.docs) {
-            const data = docSnapshot.data();
-            if (data?.answer && !pc.currentRemoteDescription) {
-              await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
-              await deleteDoc(docSnapshot.ref);
-            }
-          }
-        }
-      );
-       unsubscribes.current.push(answersUnsubscribe);
-
-      const iceUnsubscribe = onSnapshot(
-        collection(doc(meetingDocRef, 'members', peerId), 'calleeCandidates'),
-        (snapshot) => {
-          snapshot.docChanges().forEach((change) => {
-            if (change.type === 'added') {
-              pc.addIceCandidate(new RTCIceCandidate(change.doc.data()));
-            }
-          });
-        }
-      );
-       unsubscribes.current.push(iceUnsubscribe);
-    };
-
-    const answerOffer = async (offerData: any, stream: MediaStream) => {
-      if (!user || !stream || !meetingDocRef) return;
-
-      const pc = new RTCPeerConnection(servers);
-      peerConnections.current.set(offerData.callerId, pc);
-
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-
-      pc.ontrack = (event) => {
-        setRemoteStreams((prev) => ({...prev, [offerData.callerId]: event.streams[0]}));
-      };
-
-      const calleeCandidatesCollection = collection(doc(meetingDocRef, 'members', user.uid), 'calleeCandidates');
-      pc.onicecandidate = (event) => {
-        if (event.candidate) {
-          addDoc(calleeCandidatesCollection, event.candidate.toJSON());
-        }
-      };
-
-      await pc.setRemoteDescription(new RTCSessionDescription(offerData.offer));
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-
-      const answerPayload = { answer, from: user.uid, callerId: offerData.callerId };
-      const answerDocRef = doc(collection(meetingDocRef, 'answers'));
-      setDoc(answerDocRef, answerPayload);
-
-      const iceUnsubscribe = onSnapshot(
-        collection(doc(meetingDocRef, 'members', offerData.callerId), 'callerCandidates'),
-        (snapshot) => {
-          snapshot.docChanges().forEach((change) => {
-            if (change.type === 'added') {
-              pc.addIceCandidate(new RTCIceCandidate(change.doc.data()));
-            }
-          });
-        }
-      );
-       unsubscribes.current.push(iceUnsubscribe);
-    };
-
-    setupMediaAndJoin();
     window.addEventListener('beforeunload', cleanup);
     
-    // ATENÇÃO: É IMPORTANTE QUE 'cleanup' ESTEJA NAS DEPENDÊNCIAS
     return () => {
       window.removeEventListener('beforeunload', cleanup);
+      
+      // Limpa a flag de controle ao desmontar
+      isSetupRunning.current = false; 
       cleanup(); 
     };
   }, [isUserLoading, user, firestore, meetingId, router, toast, cleanup]);
