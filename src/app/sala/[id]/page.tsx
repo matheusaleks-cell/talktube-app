@@ -294,8 +294,112 @@ export default function MeetingRoomPage() {
       localVideoRef.current.play().catch(e => console.log('Autoplay blocked:', e));
     }
   }, [localStream]);
+  
+  // --- Funções WebRTC ---
 
-  // useEffect principal
+  // Corrigida: Garantir que as trilhas sejam adicionadas
+  const createPeerConnection = (peerId: string, stream: MediaStream) => {
+    if (!user || !stream || !meetingDocRef) return;
+
+    const pc = new RTCPeerConnection(servers);
+    peerConnections.current.set(peerId, pc);
+
+    // CORREÇÃO ESSENCIAL: Adicionar trilhas locais (Audio/Video) ao PeerConnection para envio
+    stream.getTracks().forEach((track) => pc.addTrack(track, stream)); 
+    
+    pc.ontrack = (event) => {
+      setRemoteStreams((prev) => ({ ...prev, [peerId]: event.streams[0] }));
+    };
+
+    // Coleção de candidatos ICE do CHAMADOR (Eu)
+    const callerCandidatesCollection = collection(doc(meetingDocRef, 'members', user.uid), 'callerCandidates');
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        addDoc(callerCandidatesCollection, event.candidate.toJSON());
+      }
+    };
+
+    pc.createOffer()
+      .then((offer) => {
+        pc.setLocalDescription(offer);
+        const offerPayload = { offer, callerId: user.uid, calleeId: peerId };
+        const offerDocRef = doc(collection(meetingDocRef, 'offers'));
+        setDoc(offerDocRef, offerPayload);
+      });
+
+    const answersUnsubscribe = onSnapshot(
+      query(collection(meetingDocRef, 'answers'), where('callerId', '==', user.uid), where('from', '==', peerId)),
+      async (snapshot) => {
+        for (const docSnapshot of snapshot.docs) {
+          const data = docSnapshot.data();
+          if (data?.answer && !pc.currentRemoteDescription) {
+            await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+            await deleteDoc(docSnapshot.ref);
+          }
+        }
+      }
+    );
+    unsubscribes.current.push(answersUnsubscribe);
+
+    // Coleção de candidatos ICE do RECEPTOR (o outro participante)
+    const iceUnsubscribe = onSnapshot(
+      collection(doc(meetingDocRef, 'members', peerId), 'calleeCandidates'),
+      (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === 'added') {
+            pc.addIceCandidate(new RTCIceCandidate(change.doc.data()));
+          }
+        });
+      }
+    );
+    unsubscribes.current.push(iceUnsubscribe);
+  };
+
+  // Corrigida: Garantir que as trilhas sejam adicionadas
+  const answerOffer = async (offerData: any, stream: MediaStream) => {
+    if (!user || !stream || !meetingDocRef) return;
+
+    const pc = new RTCPeerConnection(servers);
+    peerConnections.current.set(offerData.callerId, pc);
+
+    // CORREÇÃO ESSENCIAL: Adicionar trilhas locais (Audio/Video) ao PeerConnection para envio
+    stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+
+    pc.ontrack = (event) => {
+      setRemoteStreams((prev) => ({...prev, [offerData.callerId]: event.streams[0]}));
+    };
+
+    // Coleção de candidatos ICE do RECEPTOR (Eu)
+    const calleeCandidatesCollection = collection(doc(meetingDocRef, 'members', user.uid), 'calleeCandidates');
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        addDoc(calleeCandidatesCollection, event.candidate.toJSON());
+      }
+    };
+
+    await pc.setRemoteDescription(new RTCSessionDescription(offerData.offer));
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+
+    const answerPayload = { answer, from: user.uid, callerId: offerData.callerId };
+    const answerDocRef = doc(collection(meetingDocRef, 'answers'));
+    setDoc(answerDocRef, answerPayload);
+
+    // Coleção de candidatos ICE do CHAMADOR (o outro participante)
+    const iceUnsubscribe = onSnapshot(
+      collection(doc(meetingDocRef, 'members', offerData.callerId), 'callerCandidates'),
+      (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === 'added') {
+            pc.addIceCandidate(new RTCIceCandidate(change.doc.data()));
+          }
+        });
+      }
+    );
+    unsubscribes.current.push(iceUnsubscribe);
+  };
+  
+  // --- useEffect Principal (Manter o Setup) ---
   React.useEffect(() => {
     // PROTEÇÃO CRÍTICA 1: Evitar que o setup rode se já estiver rodando ou se não houver user/firestore
     if (isSetupRunning.current || isUserLoading || !user || !firestore || !meetingId) {
@@ -312,102 +416,6 @@ export default function MeetingRoomPage() {
 
     let localMediaStream: MediaStream | null = null;
     let setupComplete = false;
-    
-    const createPeerConnection = (peerId: string, stream: MediaStream) => {
-      if (!user || !stream || !meetingDocRef) return;
-
-      const pc = new RTCPeerConnection(servers);
-      peerConnections.current.set(peerId, pc);
-
-      // CORREÇÃO: Adicionar trilhas locais ao PeerConnection
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream)); 
-      
-      pc.ontrack = (event) => {
-        setRemoteStreams((prev) => ({ ...prev, [peerId]: event.streams[0] }));
-      };
-
-      const callerCandidatesCollection = collection(doc(meetingDocRef, 'members', user.uid), 'callerCandidates');
-      pc.onicecandidate = (event) => {
-        if (event.candidate) {
-          addDoc(callerCandidatesCollection, event.candidate.toJSON());
-        }
-      };
-
-      pc.createOffer()
-        .then((offer) => {
-          pc.setLocalDescription(offer);
-          const offerPayload = { offer, callerId: user.uid, calleeId: peerId };
-          const offerDocRef = doc(collection(meetingDocRef, 'offers'));
-          setDoc(offerDocRef, offerPayload);
-        });
-
-      const answersUnsubscribe = onSnapshot(
-        query(collection(meetingDocRef, 'answers'), where('callerId', '==', user.uid), where('from', '==', peerId)),
-        async (snapshot) => {
-          for (const docSnapshot of snapshot.docs) {
-            const data = docSnapshot.data();
-            if (data?.answer && !pc.currentRemoteDescription) {
-              await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
-              await deleteDoc(docSnapshot.ref);
-            }
-          }
-        }
-      );
-       unsubscribes.current.push(answersUnsubscribe);
-
-      const iceUnsubscribe = onSnapshot(
-        collection(doc(meetingDocRef, 'members', peerId), 'calleeCandidates'),
-        (snapshot) => {
-          snapshot.docChanges().forEach((change) => {
-            if (change.type === 'added') {
-              pc.addIceCandidate(new RTCIceCandidate(change.doc.data()));
-            }
-          });
-        }
-      );
-       unsubscribes.current.push(iceUnsubscribe);
-    };
-
-    const answerOffer = async (offerData: any, stream: MediaStream) => {
-      if (!user || !stream || !meetingDocRef) return;
-
-      const pc = new RTCPeerConnection(servers);
-      peerConnections.current.set(offerData.callerId, pc);
-
-      // CORREÇÃO: Adicionar trilhas locais ao PeerConnection
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-
-      pc.ontrack = (event) => {
-        setRemoteStreams((prev) => ({...prev, [offerData.callerId]: event.streams[0]}));
-      };
-
-      const calleeCandidatesCollection = collection(doc(meetingDocRef, 'members', user.uid), 'calleeCandidates');
-      pc.onicecandidate = (event) => {
-        if (event.candidate) {
-          addDoc(calleeCandidatesCollection, event.candidate.toJSON());
-        }
-      };
-
-      await pc.setRemoteDescription(new RTCSessionDescription(offerData.offer));
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-
-      const answerPayload = { answer, from: user.uid, callerId: offerData.callerId };
-      const answerDocRef = doc(collection(meetingDocRef, 'answers'));
-      setDoc(answerDocRef, answerPayload);
-
-      const iceUnsubscribe = onSnapshot(
-        collection(doc(meetingDocRef, 'members', offerData.callerId), 'callerCandidates'),
-        (snapshot) => {
-          snapshot.docChanges().forEach((change) => {
-            if (change.type === 'added') {
-              pc.addIceCandidate(new RTCIceCandidate(change.doc.data()));
-            }
-          });
-        }
-      );
-       unsubscribes.current.push(iceUnsubscribe);
-    };
     
     const setupMediaAndJoin = async () => {
       if (!firestore || !user || !meetingDocRef) return;
@@ -493,11 +501,13 @@ export default function MeetingRoomPage() {
           setParticipants(currentParticipants);
 
           currentParticipants.forEach((p) => {
+            // Se um novo participante aparecer no Firestore, iniciamos a conexão P2P
             if (p.id !== user.uid && !peerConnections.current.has(p.id)) {
               createPeerConnection(p.id, localMediaStream!);
             }
           });
 
+          // Limpeza de participantes que saíram
           peerConnections.current.forEach((pc, peerId) => {
             if (!currentParticipantIds.has(peerId)) {
               pc.close();
@@ -544,7 +554,7 @@ export default function MeetingRoomPage() {
       isSetupRunning.current = false; 
       cleanup(); 
     };
-  }, [isUserLoading, user, firestore, meetingId, router, toast, cleanup]);
+  }, [isUserLoading, user, firestore, meetingId, router, toast, cleanup, createPeerConnection, answerOffer]); // Adicionadas createPeerConnection/answerOffer às dependências
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
