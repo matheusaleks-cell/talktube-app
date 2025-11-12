@@ -299,14 +299,16 @@ export default function MeetingRoomPage() {
       if (!firestore || !user || !meetingDocRef) return;
 
       try {
+        // Tenta adquirir permissão de mídia
         localMediaStream = await navigator.mediaDevices.getUserMedia({
           video: true,
           audio: true,
         });
         setLocalStream(localMediaStream);
         setHasMediaPermission(true);
+        console.log("LOG: Media acquired successfully."); // Log de sucesso
       } catch (error) {
-        console.error('Error accessing media devices.', error);
+        console.error('LOG: Error accessing media devices. Redirecting to error screen.', error);
         setHasMediaPermission(false);
         toast({
           variant: 'destructive',
@@ -314,8 +316,7 @@ export default function MeetingRoomPage() {
           description:
             'Precisamos de acesso à sua câmera e microfone para entrar na sala.',
         });
-        // CHAMA CLEANUP COM shouldRedirect=false PARA LIMPAR CONEXÕES SEM REDIRECIONAR
-        cleanup(false); 
+        cleanup(false); // Limpa conexões, NÃO redireciona, exibe alerta
         return;
       }
       
@@ -339,18 +340,20 @@ export default function MeetingRoomPage() {
         joinedAt: serverTimestamp(),
       };
       
-      // CORREÇÃO 3: Usar await/catch para garantir que o documento de membro foi criado antes de continuar.
+      // CORREÇÃO 3: Lógica de gravação de membros à prova de falhas (Permissão de Regras)
       try {
+        console.log("LOG: Attempting to create member document:", memberDocRef.path);
         await setDoc(memberDocRef, memberData);
+        console.log("LOG: Member document created successfully.");
       } catch (error) {
-        console.error('Error setting member document:', error);
-        const contextualError = new FirestorePermissionError({
-          operation: 'create',
-          path: memberDocRef.path,
-          requestResourceData: memberData,
+        console.error('FATAL: Failed to create member document (Security Rules Issue):', error);
+        
+        // A regra de segurança falhou APÓS o login (Security Rules Issue)
+        toast({ 
+            variant: 'destructive', 
+            title: 'Falha de Permissão Crítica', 
+            description: 'O Firebase bloqueou a entrada na sala. Verifique as Regras do Firestore!' 
         });
-        errorEmitter.emit('permission-error', contextualError);
-        // Se a criação do membro falhar, saia do setup sem continuar com WebRTC
         cleanup(false); 
         return;
       }
@@ -399,7 +402,7 @@ export default function MeetingRoomPage() {
           }
         }
       );
-      // CORREÇÃO 4: Nome da variável corrigido
+      // CORREÇÃO 4: Nome da variável corrigido (sem o 's' extra, se houver)
       unsubscribes.current.push(offersUnsubscribe);
     };
 
