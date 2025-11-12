@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import LoginWrapper from './LoginWrapper'; // Importa a lógica do cliente que usa useSearchParams
+import LoginWrapper from './LoginComponent'; // Importa a lógica do cliente que usa useSearchParams
 
 // Este é o componente Servidor da rota /login.
 // Ele envolve o componente cliente com Suspense para resolver o erro no build.
@@ -12,7 +12,7 @@ export default function LoginPage() {
             <div>Carregando tela de login...</div> 
         </div>
     }>
-      <LoginWrapper />
+      <LoginComponent />
     </Suspense>
   );
 }
