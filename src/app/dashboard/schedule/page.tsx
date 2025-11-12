@@ -70,7 +70,7 @@ export default function ScheduleMeetingPage() {
       .split(',')
       .map(lang => lang.trim())
       .filter(Boolean);
-    const interpreterType = 'Automático (IA)'; // Mocked for now
+    const interpreterType = 'Humano';
 
     if (!date || !time) {
       toast({
@@ -254,16 +254,8 @@ export default function ScheduleMeetingPage() {
             <Label>Tipo de Intérprete</Label>
              <div className="flex flex-wrap items-center gap-4 rounded-lg border p-4">
                  <div className="flex items-center space-x-2">
-                    <Checkbox id="interpreter-ai" defaultChecked disabled={isLoading} />
-                    <Label htmlFor="interpreter-ai">Automático (IA)</Label>
-                </div>
-                 <div className="flex items-center space-x-2">
-                    <Checkbox id="interpreter-human" disabled />
-                    <Label htmlFor="interpreter-human">Humano (Contratado à parte)</Label>
-                </div>
-                 <div className="flex items-center space-x-2">
-                    <Checkbox id="interpreter-hybrid" disabled />
-                    <Label htmlFor="interpreter-hybrid">Híbrido (IA + Humano)</Label>
+                    <Checkbox id="interpreter-human" defaultChecked disabled />
+                    <Label htmlFor="interpreter-human">Humano (Contratado na plataforma)</Label>
                 </div>
             </div>
           </div>

@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { MoreHorizontal, Loader2 } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, doc, updateDoc } from 'firebase/firestore';
+import { collection, doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -31,7 +31,7 @@ interface User {
   name: string;
   email: string;
   preferredLanguage: string;
-  lastLogin: string;
+  lastLogin: string | Timestamp;
 }
 
 interface Interpreter {
@@ -93,6 +93,17 @@ export default function AdminUsersPage() {
     }
   };
 
+  const formatLastLogin = (lastLogin: string | Timestamp | undefined) => {
+    if (!lastLogin) return 'N/A';
+    if (typeof lastLogin === 'string') {
+      return new Date(lastLogin).toLocaleDateString('pt-BR');
+    }
+    if (lastLogin instanceof Timestamp) {
+      return lastLogin.toDate().toLocaleDateString('pt-BR');
+    }
+    return 'Data inválida';
+  }
+
   const isLoading = isLoadingUsers || isLoadingInterpreters;
 
   return (
@@ -133,7 +144,7 @@ export default function AdminUsersPage() {
                   <TableCell className="font-medium">{user.name}</TableCell>
                   <TableCell>{user.email}</TableCell>
                   <TableCell>{user.preferredLanguage}</TableCell>
-                  <TableCell>{user.lastLogin}</TableCell>
+                  <TableCell>{formatLastLogin(user.lastLogin)}</TableCell>
                 </TableRow>
               ))}
               {!isLoading && users?.length === 0 && (
@@ -221,3 +232,5 @@ export default function AdminUsersPage() {
     </div>
   );
 }
+
+    

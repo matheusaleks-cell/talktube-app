@@ -1,60 +1,88 @@
+
 'use client';
 
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
+import {
+  CalendarPlus,
+  Users,
+  MessageSquare,
+  ShieldCheck,
+  CheckCircle,
+  BarChart,
+  Video,
+  Languages,
+  Rocket,
+  Globe,
+  Play,
+  Heart,
+  Linkedin,
+  Twitter,
+  Instagram,
+} from 'lucide-react';
+import { Logo } from '@/components/logo';
+import { PlaceHolderImages } from '@/lib/placeholder-images';
+import Image from 'next/image';
+import { ThemeToggle } from '@/components/theme-toggle';
+import { useUser, useAuth } from '@/firebase';
+import { signOut } from 'firebase/auth';
+import * as React from 'react';
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from '@/components/ui/avatar';
-import Link from 'next/link';
-import {
-  Users,
-  Globe,
-  CalendarClock,
-  MessageSquare,
-  Mic,
-  Languages,
-  Video,
-} from 'lucide-react';
-import { Logo } from '@/components/logo';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
-import Image from 'next/image';
-import { ThemeToggle } from '@/components/theme-toggle';
-import { useUser } from '@/firebase';
-import { signOut } from 'firebase/auth';
-import { useAuth } from '@/firebase';
-import * as React from 'react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { cn } from '@/lib/utils';
+
+const heroImage = PlaceHolderImages.find((img) => img.id === 'hero-image-1');
+
+const howItWorks = [
+  {
+    icon: <CalendarPlus className="h-10 w-10 text-accent" />,
+    title: '1. Agende sua reunião',
+    description:
+      'Escolha a data, hora e os idiomas necessários para a sua conferência.',
+  },
+  {
+    icon: <Users className="h-10 w-10 text-accent" />,
+    title: '2. Conecte com um intérprete',
+    description:
+      'Um profissional da nossa rede de intérpretes qualificados entra na chamada.',
+  },
+  {
+    icon: <MessageSquare className="h-10 w-10 text-accent" />,
+    title: '3. Comunique-se sem barreiras',
+    description:
+      'Fale no seu idioma e ouça a interpretação em tempo real, como se todos falassem a mesma língua.',
+  },
+];
 
 const features = [
   {
-    icon: <Users className="h-8 w-8 text-accent" />,
-    title: 'Crie reuniões multilíngues',
+    icon: <Users className="h-6 w-6 text-accent" />,
+    title: 'Intérpretes Humanos em Tempo Real',
     description:
-      'Conecte-se com equipes globais em seus próprios idiomas, quebrando barreiras de comunicação.',
+      'Nossa plataforma conecta você a intérpretes profissionais para garantir uma comunicação precisa e com nuances culturais.',
   },
   {
-    icon: <Globe className="h-8 w-8 text-accent" />,
-    title: 'Tenha intérpretes humanos ou IA',
+    icon: <Globe className="h-6 w-6 text-accent" />,
+    title: 'Suporte a +40 Idiomas',
     description:
-      'Escolha entre a precisão de intérpretes profissionais ou a agilidade da nossa IA avançada.',
+      'Oferecemos uma vasta gama de idiomas para cobrir todas as suas necessidades de comunicação global.',
   },
   {
-    icon: <CalendarClock className="h-8 w-8 text-accent" />,
-    title: 'Agende e receba lembretes automáticos',
+    icon: <ShieldCheck className="h-6 w-6 text-accent" />,
+    title: 'Segurança Corporativa',
     description:
-      'Nunca mais perca uma reunião. Nosso sistema envia notificações para todos os participantes.',
+      'Todas as reuniões são protegidas com criptografia de ponta a ponta, garantindo a confidencialidade das suas conversas.',
   },
   {
-    icon: <Languages className="h-8 w-8 text-accent" />,
-    title: 'Tradução e legendas ao vivo',
+    icon: <Video className="h-6 w-6 text-accent" />,
+    title: 'Integração com Suas Ferramentas',
     description:
-      'Acompanhe a conversa com legendas em tempo real, traduzidas para o seu idioma de preferência.',
+      'O Talktube funciona perfeitamente com Zoom, Google Meet e Microsoft Teams para uma experiência fluida.',
   },
 ];
 
@@ -66,20 +94,18 @@ const testimonials = [
     text: 'O Talktube revolucionou nossas reuniões internacionais. A interpretação simultânea é impecável e fácil de usar.',
   },
   {
-    name: 'Carlos Santos',
+    name: 'John Smith',
     title: 'CEO, Innovate Solutions',
     avatar: 'https://i.pravatar.cc/150?u=a042581f4e29026704d',
-    text: 'Finalmente uma plataforma que entende a necessidade de comunicação global. Os lembretes automáticos são um bônus incrível.',
+    text: 'Finalmente uma plataforma que entende a necessidade da comunicação global. A qualidade dos intérpretes é excepcional.',
   },
   {
-    name: 'Juliana Costa',
+    name: 'Yuki Tanaka',
     title: 'Diretora de Eventos, ConnectWorld',
     avatar: 'https://i.pravatar.cc/150?u=a04258114e29026702d',
-    text: 'Usamos o Talktube para nossos congressos virtuais. A flexibilidade entre intérpretes humanos e IA é fantástica.',
+    text: 'Usamos o Talktube para nossos congressos virtuais. Encontrar intérpretes qualificados na própria plataforma é fantástico.',
   },
 ];
-
-const heroImage = PlaceHolderImages.find((img) => img.id === 'hero-image-1');
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
@@ -89,104 +115,110 @@ export default function Home() {
   React.useEffect(() => {
     setIsClient(true);
   }, []);
-  
+
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-14 items-center">
+    <div className="flex min-h-screen flex-col bg-background text-foreground dark:bg-primary dark:text-primary-foreground">
+      <header className="sticky top-0 z-50 w-full border-b border-white/10 bg-background/80 dark:bg-primary/80 backdrop-blur-sm">
+        <div className="container flex h-16 items-center">
           <Link href="/" className="mr-6 flex items-center space-x-2">
-            <Logo className="h-6 w-6" />
-            <span className="font-bold">Talktube</span>
+            <Logo className="h-8 w-8 text-white" />
+            <span className="font-bold text-lg">Talktube</span>
           </Link>
-          <div className="flex flex-1 items-center justify-end space-x-4">
-            <nav className="flex items-center space-x-2">
-              <ThemeToggle />
-              {isClient && !isUserLoading && (
-                user ? (
-                  <>
-                    <Button variant="ghost" asChild>
-                      <Link href="/dashboard">Dashboard</Link>
-                    </Button>
-                    <Button onClick={() => signOut(auth)}>Sair</Button>
-                  </>
-                ) : (
-                  <>
-                    <Button variant="ghost" asChild>
-                      <Link href="/login">Entrar</Link>
-                    </Button>
-                    <Button asChild>
-                      <Link href="/register">Criar Conta</Link>
-                    </Button>
-                  </>
-                )
-              )}
-            </nav>
+          <div className="hidden md:flex items-center space-x-2">
+            <Button variant="ghost" asChild>
+              <Link href="#features">Recursos</Link>
+            </Button>
+            <Button variant="ghost" asChild>
+              <Link href="#how-it-works">Como Funciona</Link>
+            </Button>
+            <Button variant="ghost" asChild>
+              <Link href="#testimonials">Clientes</Link>
+            </Button>
+          </div>
+          <div className="flex flex-1 items-center justify-end space-x-2">
+            <ThemeToggle />
+            {isClient &&
+              (!isUserLoading && user ? (
+                <>
+                  <Button variant="ghost" asChild>
+                    <Link href="/dashboard">Dashboard</Link>
+                  </Button>
+                  <Button onClick={() => signOut(auth)}>Sair</Button>
+                </>
+              ) : !isUserLoading ? (
+                <>
+                  <Button variant="ghost" asChild>
+                    <Link href="/login">Entrar</Link>
+                  </Button>
+                  <Button className="bg-accent hover:bg-accent/90 text-primary-foreground" asChild>
+                    <Link href="/register">Criar Conta</Link>
+                  </Button>
+                </>
+              ) : (
+                <div className="w-40 h-10" />
+              ))}
           </div>
         </div>
       </header>
 
       <main className="flex-1">
-        <section className="py-12 md:py-24 lg:py-32">
-          <div className="container px-4 md:px-6">
-            <div className="grid gap-6 lg:grid-cols-[1fr_400px] lg:gap-12 xl:grid-cols-[1fr_600px]">
-              <div className="flex flex-col justify-center space-y-4">
-                <div className="space-y-2">
-                  <h1 className="font-headline text-3xl font-bold tracking-tighter sm:text-5xl xl:text-6xl/none">
-                    Reuniões sem fronteiras. Com intérpretes humanos e IA em
-                    tempo real.
-                  </h1>
-                  <p className="max-w-[600px] text-muted-foreground md:text-xl">
-                    O Talktube é a solução definitiva para comunicação global.
-                    Agende reuniões, escolha seu canal de idioma e colabore sem
-                    barreiras.
-                  </p>
-                </div>
-                <div className="flex flex-col gap-2 min-[400px]:flex-row">
-                  <Button size="lg" asChild>
-                    <Link href="/register">Experimente o Talktube agora</Link>
-                  </Button>
-                </div>
-              </div>
-              {heroImage && (
-                <Image
-                  src={heroImage.imageUrl}
-                  alt={heroImage.description}
-                  data-ai-hint={heroImage.imageHint}
-                  width={600}
-                  height={400}
-                  className="mx-auto aspect-video overflow-hidden rounded-xl object-cover sm:w-full lg:order-last"
-                />
-              )}
+        {/* Hero Section */}
+        <section className="relative py-20 md:py-32 lg:py-40 text-center text-primary-foreground overflow-hidden">
+          {heroImage && (
+            <Image
+              src={heroImage.imageUrl}
+              alt={heroImage.description}
+              data-ai-hint={heroImage.imageHint}
+              fill
+              className="object-cover z-0"
+              priority
+            />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-primary/90 to-primary/60 z-10"></div>
+          <div className="container relative z-20">
+            <h1 className="font-headline text-4xl md:text-5xl lg:text-6xl font-bold tracking-tighter max-w-4xl mx-auto">
+              Comunicação global. Intérpretes humanos. Reuniões sem barreiras.
+            </h1>
+            <p className="mt-6 max-w-2xl mx-auto text-lg md:text-xl text-primary-foreground/90">
+              O Talktube conecta pessoas e empresas do mundo todo com intérpretes humanos em tempo real — para que você possa se comunicar de verdade, em qualquer idioma.
+            </p>
+            <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
+               <Button size="lg" className="bg-accent hover:bg-accent/90 text-primary-foreground font-bold" asChild>
+                <Link href="/register">
+                    <Rocket className="mr-2 h-5 w-5" />
+                    Experimente o Talktube agora
+                </Link>
+              </Button>
+              <Button size="lg" variant="outline" className='bg-transparent hover:bg-primary-foreground/10 border-primary-foreground text-primary-foreground' asChild>
+                <Link href="#how-it-works">
+                    <Play className="mr-2 h-5 w-5" />
+                    Assista à demonstração
+                </Link>
+              </Button>
             </div>
           </div>
         </section>
 
-        <section id="features" className="w-full py-12 md:py-24 lg:py-32 bg-muted/40">
-          <div className="container px-4 md:px-6">
-            <div className="flex flex-col items-center justify-center space-y-4 text-center">
-              <div className="space-y-2">
-                <div className="inline-block rounded-lg bg-secondary px-3 py-1 text-sm">
-                  Recursos Principais
-                </div>
-                <h2 className="font-headline text-3xl font-bold tracking-tighter sm:text-5xl">
-                  Comunicação Simplificada. Globalmente.
-                </h2>
-                <p className="max-w-[900px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
-                  Nossa plataforma foi desenhada para ser intuitiva e poderosa,
-                  oferecendo todas as ferramentas que você precisa para se
-                  comunicar efetivamente com o mundo.
-                </p>
-              </div>
+        {/* How it Works Section */}
+        <section id="how-it-works" className="py-20 md:py-28 bg-background dark:bg-primary">
+          <div className="container">
+            <div className="text-center max-w-3xl mx-auto">
+              <h2 className="text-sm uppercase font-semibold text-accent tracking-wider">
+                Como funciona
+              </h2>
+              <p className="mt-2 font-headline text-3xl md:text-4xl font-bold tracking-tight">
+                Comunicação global em 3 passos simples
+              </p>
             </div>
-            <div className="mx-auto grid max-w-5xl items-start gap-8 sm:grid-cols-2 md:gap-12 lg:grid-cols-2 pt-12">
-              {features.map((feature, index) => (
-                <div key={index} className="grid gap-1">
-                  <div className="flex items-center gap-4">
-                    {feature.icon}
-                    <h3 className="text-lg font-bold">{feature.title}</h3>
+            <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12">
+              {howItWorks.map((step) => (
+                <div key={step.title} className="text-center p-8 border border-border rounded-lg bg-card dark:bg-card/5 hover:shadow-lg transition-shadow">
+                  <div className="flex items-center justify-center h-20 w-20 rounded-full bg-accent/10 mx-auto">
+                    {step.icon}
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    {feature.description}
+                  <h3 className="mt-6 text-xl font-bold">{step.title}</h3>
+                  <p className="mt-2 text-muted-foreground">
+                    {step.description}
                   </p>
                 </div>
               ))}
@@ -194,41 +226,82 @@ export default function Home() {
           </div>
         </section>
 
-        <section id="testimonials" className="w-full py-12 md:py-24 lg:py-32">
-          <div className="container grid items-center justify-center gap-4 px-4 text-center md:px-6">
-            <div className="space-y-3">
-              <h2 className="font-headline text-3xl font-bold tracking-tighter md:text-4xl/tight">
-                O que nossos clientes dizem
+        {/* Features Section */}
+        <section id="features" className="py-20 md:py-28 bg-muted/20 dark:bg-primary/50">
+          <div className="container">
+            <div className="text-center max-w-3xl mx-auto mb-16">
+              <h2 className="text-sm uppercase font-semibold text-accent tracking-wider">
+                Recursos
               </h2>
-              <p className="mx-auto max-w-[600px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
-                Empresas líderes confiam no Talktube para suas comunicações
-                mais importantes.
+              <p className="mt-2 font-headline text-3xl md:text-4xl font-bold tracking-tight">
+                Ferramentas para uma comunicação sem falhas
+              </p>
+               <p className="mt-4 text-lg text-muted-foreground">
+                Nossa plataforma foi projetada para ser poderosa, mas intuitiva,
+                garantindo que suas reuniões globais sejam produtivas e
+                eficientes.
               </p>
             </div>
-            <div className="grid w-full grid-cols-1 gap-6 pt-8 sm:grid-cols-2 lg:grid-cols-3">
-              {testimonials.map((testimonial, index) => (
-                <Card key={index}>
-                  <CardContent className="p-6">
-                    <div className="space-y-4">
-                      <p className="text-sm text-muted-foreground">
-                        "{testimonial.text}"
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                {features.map((feature) => (
+                  <div
+                    key={feature.title}
+                    className="flex items-start gap-4 p-6 rounded-lg bg-card dark:bg-card/10"
+                  >
+                    <div className="flex-shrink-0 flex items-center justify-center h-10 w-10 rounded-full bg-accent/10">
+                      {feature.icon}
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-lg">
+                        {feature.title}
+                      </h3>
+                      <p className="text-muted-foreground mt-1">
+                        {feature.description}
                       </p>
-                      <div className="flex items-center gap-3">
-                        <Avatar>
-                          <AvatarImage
-                            src={testimonial.avatar}
-                            alt={testimonial.name}
-                          />
-                          <AvatarFallback>
-                            {testimonial.name.charAt(0)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-semibold">{testimonial.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {testimonial.title}
-                          </p>
-                        </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+          </div>
+        </section>
+
+        {/* Testimonials Section */}
+        <section id="testimonials" className="py-20 md:py-28 bg-background dark:bg-primary">
+          <div className="container">
+            <div className="text-center max-w-3xl mx-auto">
+              <h2 className="text-sm uppercase font-semibold text-accent tracking-wider">
+                Prova Social
+              </h2>
+              <p className="mt-2 font-headline text-3xl md:text-4xl font-bold tracking-tight">
+                Empresas no mundo todo confiam no Talktube
+              </p>
+              <p className="mt-4 text-lg text-muted-foreground">
+                Mais de 1.000 reuniões globais realizadas por mês com 98% de
+                satisfação.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mt-16">
+              {testimonials.map((testimonial) => (
+                <Card key={testimonial.name} className="bg-card dark:bg-card/5 border border-border/50">
+                  <CardContent className="p-6">
+                    <p className="italic text-muted-foreground">
+                      "{testimonial.text}"
+                    </p>
+                    <div className="flex items-center gap-4 mt-6">
+                      <Avatar>
+                        <AvatarImage
+                          src={testimonial.avatar}
+                          alt={testimonial.name}
+                        />
+                        <AvatarFallback>
+                          {testimonial.name.charAt(0)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-semibold">{testimonial.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {testimonial.title}
+                        </p>
                       </div>
                     </div>
                   </CardContent>
@@ -237,42 +310,85 @@ export default function Home() {
             </div>
           </div>
         </section>
+
+        {/* CTA Section */}
+        <section
+          id="cta"
+          className="py-20 md:py-28 bg-accent/10 dark:bg-accent/5"
+        >
+          <div className="container text-center">
+            <h2 className="font-headline text-3xl md:text-4xl font-bold tracking-tight">
+              Pronto para se comunicar sem fronteiras?
+            </h2>
+            <p className="mt-4 max-w-2xl mx-auto text-lg text-muted-foreground">
+              Experimente o Talktube gratuitamente e veja como é fácil transformar reuniões em conexões reais.
+            </p>
+            <div className="mt-8 flex justify-center gap-4">
+               <Button size="lg" className="bg-accent hover:bg-accent/90 text-primary-foreground font-bold" asChild>
+                <Link href="/register">
+                  <Rocket className="mr-2 h-5 w-5" />
+                  Começar agora
+                </Link>
+              </Button>
+               <Button size="lg" variant="outline" asChild>
+                <Link href="#">
+                  Fale com nosso time
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </section>
       </main>
 
-      <footer className="border-t">
-        <div className="container flex flex-col items-center justify-between gap-4 py-10 md:h-24 md:flex-row md:py-0">
-          <div className="flex flex-col items-center gap-4 px-8 md:flex-row md:gap-2 md:px-0">
-            <Logo className="h-6 w-6" />
-            <p className="text-center text-sm leading-loose text-muted-foreground md:text-left">
-              © {new Date().getFullYear()} Talktube. Todos os direitos reservados.
-            </p>
-          </div>
-          <nav className="flex gap-4 sm:gap-6">
-            <Link
-              href="#"
-              className="text-sm text-muted-foreground hover:text-foreground"
-            >
-              Sobre
-            </Link>
-            <Link
-              href="#"
-              className="text-sm text-muted-foreground hover:text-foreground"
-            >
-              Termos
-            </Link>
-            <Link
-              href="#"
-              className="text-sm text-muted-foreground hover:text-foreground"
-            >
-              Política de Privacidade
-            </Link>
-            <Link
-              href="#"
-              className="text-sm text-muted-foreground hover:text-foreground"
-            >
-              Contato
-            </Link>
-          </nav>
+      <footer className="border-t border-white/10 bg-primary text-primary-foreground">
+        <div className="container py-12">
+            <div className='grid grid-cols-1 md:grid-cols-4 gap-8'>
+                <div className='md:col-span-1'>
+                     <Link href="/" className="flex items-center space-x-2">
+                        <Logo className="h-8 w-8 text-white" />
+                        <span className="font-bold text-lg">Talktube</span>
+                    </Link>
+                    <p className="text-sm text-muted-foreground mt-4">
+                        Feito com <Heart className="inline h-4 w-4" /> pela Talktube.
+                    </p>
+                </div>
+                <div className='md:col-span-3 grid grid-cols-2 md:grid-cols-4 gap-8'>
+                    <div>
+                        <h4 className='font-semibold mb-4'>Produto</h4>
+                        <nav className='flex flex-col gap-2'>
+                           <Link href="#" className="text-sm text-muted-foreground hover:text-primary-foreground">Recursos</Link>
+                           <Link href="#" className="text-sm text-muted-foreground hover:text-primary-foreground">Preços</Link>
+                           <Link href="#" className="text-sm text-muted-foreground hover:text-primary-foreground">Blog</Link>
+                        </nav>
+                    </div>
+                     <div>
+                        <h4 className='font-semibold mb-4'>Empresa</h4>
+                        <nav className='flex flex-col gap-2'>
+                           <Link href="#" className="text-sm text-muted-foreground hover:text-primary-foreground">Sobre nós</Link>
+                           <Link href="#" className="text-sm text-muted-foreground hover:text-primary-foreground">Carreiras</Link>
+                           <Link href="#" className="text-sm text-muted-foreground hover:text-primary-foreground">Contato</Link>
+                        </nav>
+                    </div>
+                     <div>
+                        <h4 className='font-semibold mb-4'>Legal</h4>
+                        <nav className='flex flex-col gap-2'>
+                           <Link href="#" className="text-sm text-muted-foreground hover:text-primary-foreground">Termos de Serviço</Link>
+                           <Link href="#" className="text-sm text-muted-foreground hover:text-primary-foreground">Privacidade</Link>
+                        </nav>
+                    </div>
+                     <div>
+                        <h4 className='font-semibold mb-4'>Social</h4>
+                        <div className="flex gap-4">
+                            <Link href="#"><Twitter className="h-5 w-5 text-muted-foreground hover:text-primary-foreground" /></Link>
+                            <Link href="#"><Linkedin className="h-5 w-5 text-muted-foreground hover:text-primary-foreground" /></Link>
+                            <Link href="#"><Instagram className="h-5 w-5 text-muted-foreground hover:text-primary-foreground" /></Link>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div className="mt-8 border-t border-white/10 pt-8 text-center text-sm text-muted-foreground">
+                 © {new Date().getFullYear()} Talktube. Todos os direitos reservados.
+            </div>
         </div>
       </footer>
     </div>

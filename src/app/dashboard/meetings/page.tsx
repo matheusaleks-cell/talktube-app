@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -16,14 +17,14 @@ import Link from 'next/link';
 import { Share2, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
-import { collection, query, where, orderBy, Timestamp } from 'firebase/firestore';
+import { collection, query, orderBy, Timestamp } from 'firebase/firestore';
 
 interface Meeting {
   id: string;
   title: string;
   startTime: Timestamp;
   duration: number;
-  interpretationLanguages: string[];
+  interpretationLanguages?: string[];
   participants?: number; // Making participants optional for scheduled meetings
 }
 
@@ -95,7 +96,7 @@ export default function MeetingsPage() {
         {isScheduled ? (
           <TableCell>
             <div className="flex gap-1">
-              {meeting.interpretationLanguages.map((lang) => (
+              {meeting.interpretationLanguages?.map((lang) => (
                 <Badge key={lang} variant="secondary">
                   {lang}
                 </Badge>
@@ -183,3 +184,5 @@ export default function MeetingsPage() {
     </div>
   );
 }
+
+    

@@ -1,9 +1,10 @@
+
 # Configurações para a Netlify
 
 [build]
-  # O comando de build foi removido. O plugin do Next.js cuidará disso.
   # Diretório onde os arquivos estáticos e as funções serverless são gerados
   publish = ".next"
+  command = "next build"
 
 [build.environment]
   # Desativa o auto-update do Genkit durante o build
@@ -12,3 +13,5 @@
 [[plugins]]
   # Plugin oficial da Netlify para Next.js
   package = "@netlify/plugin-nextjs"
+
+    

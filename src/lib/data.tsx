@@ -1,3 +1,4 @@
+
 import {
   LayoutDashboard,
   CalendarCheck,
@@ -7,8 +8,7 @@ import {
   Users,
   BarChart3,
   Bell,
-  FileText,
-  Package,
+  Home,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 
@@ -23,7 +23,7 @@ export const userNavItems: NavItem[] = [
   {
     href: '/dashboard',
     label: 'Dashboard',
-    icon: <LayoutDashboard />,
+    icon: <Home />,
   },
   {
     href: '/dashboard/meetings',
@@ -117,19 +117,19 @@ export const timezones = [
 ];
 
 export const chartData = [
-  { month: "Jan", total: Math.floor(Math.random() * 5000) + 1000 },
-  { month: "Fev", total: Math.floor(Math.random() * 5000) + 1000 },
-  { month: "Mar", total: Math.floor(Math.random() * 5000) + 1000 },
-  { month: "Abr", total: Math.floor(Math.random() * 5000) + 1000 },
-  { month: "Mai", total: Math.floor(Math.random() * 5000) + 1000 },
-  { month: "Jun", total: Math.floor(Math.random() * 5000) + 1000 },
-  { month: "Jul", total: Math.floor(Math.random() * 5000) + 1000 },
-  { month: "Ago", total: Math.floor(Math.random() * 5000) + 1000 },
-  { month: "Set", total: Math.floor(Math.random() * 5000) + 1000 },
-  { month: "Out", total: Math.floor(Math.random() * 5000) + 1000 },
-  { month: "Nov", total: Math.floor(Math.random() * 5000) + 1000 },
-  { month: "Dez", total: Math.floor(Math.random() * 5000) + 1000 },
-]
+  { month: 'Janeiro', total: 0 },
+  { month: 'Fevereiro', total: 0 },
+  { month: 'Março', total: 0 },
+  { month: 'Abril', total: 2 },
+  { month: 'Maio', total: 0 },
+  { month: 'Junho', total: 0 },
+  { month: 'Julho', total: 3 },
+  { month: 'Agosto', total: 0 },
+  { month: 'Setembro', total: 0 },
+  { month: 'Outubro', total: 4 },
+  { month: 'Novembro', total: 0 },
+  { month: 'Dezembro', total: 0 },
+];
 
 export const languageUsageData = [
   { name: 'Inglês', value: 480, fill: 'hsl(var(--chart-1))' },
@@ -138,3 +138,5 @@ export const languageUsageData = [
   { name: 'Francês', value: 180, fill: 'hsl(var(--chart-4))' },
   { name: 'Outros', value: 100, fill: 'hsl(var(--muted))' },
 ];
+
+    

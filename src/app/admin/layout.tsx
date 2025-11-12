@@ -2,10 +2,11 @@
 
 import { AppShell } from '@/components/dashboard/app-shell';
 import { adminNavItems } from '@/lib/data';
-import { useAuth, useUser } from '@/firebase';
+import { useFirestore, useUser, useDoc, useMemoFirebase } from '@/firebase';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { doc } from 'firebase/firestore';
 
 export default function AdminLayout({
   children,
@@ -13,16 +14,31 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const { user, isUserLoading } = useUser();
+  const firestore = useFirestore();
   const router = useRouter();
-  const auth = useAuth();
+
+  const adminDocRef = useMemoFirebase(() => {
+    if (!user) return null;
+    return doc(firestore, 'admins', user.uid);
+  }, [firestore, user]);
+
+  const { data: adminDoc, isLoading: isAdminLoading } = useDoc(adminDocRef);
+
+  const isLoading = isUserLoading || isAdminLoading;
 
   useEffect(() => {
-    if (!isUserLoading && !user) {
-      router.push('/login');
+    if (!isLoading) {
+      if (!user) {
+        // Not logged in, redirect to login
+        router.push('/login?redirect=/admin');
+      } else if (!adminDoc) {
+        // Logged in, but not an admin, redirect to user dashboard
+        router.push('/dashboard');
+      }
     }
-  }, [isUserLoading, user, router]);
+  }, [isLoading, user, adminDoc, router]);
 
-  if (isUserLoading || !user) {
+  if (isLoading || !adminDoc) {
     return (
        <div className="flex min-h-screen w-full flex-col">
         <div className="flex flex-col sm:gap-4 sm:py-4 sm:pl-14">
@@ -44,8 +60,8 @@ export default function AdminLayout({
   return (
     <AppShell
       navItems={adminNavItems}
-      userName={user.displayName || 'Admin'}
-      userEmail={user.email || 'admin@talktube.com'}
+      userName={user?.displayName || 'Admin'}
+      userEmail={user?.email || 'admin@talktube.com'}
     >
       {children}
     </AppShell>

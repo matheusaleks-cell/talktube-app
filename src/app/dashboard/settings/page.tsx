@@ -27,6 +27,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth, useFirestore, useUser, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
 import { updateProfile, reauthenticateWithCredential, EmailAuthProvider, updatePassword, deleteUser } from 'firebase/auth';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { languages } from '@/lib/data';
 import { Loader2, Save, Upload, Trash2, KeyRound } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -146,6 +147,9 @@ function ProfileCard() {
   const firestore = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
+  const [isUploading, setIsUploading] = React.useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [photoURL, setPhotoURL] = React.useState(user?.photoURL);
 
   const userDocRef = useMemoFirebase(() => {
     if (!user) return null;
@@ -173,7 +177,43 @@ function ProfileCard() {
     if (userProfile) {
       reset(userProfile);
     }
-  }, [userProfile, reset]);
+    if (user?.photoURL) {
+      setPhotoURL(user.photoURL);
+    }
+  }, [userProfile, user, reset]);
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!user) return;
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const storage = getStorage();
+      const storageRef = ref(storage, `profile_pictures/${user.uid}`);
+      
+      const snapshot = await uploadBytes(storageRef, file);
+      const newPhotoURL = await getDownloadURL(snapshot.ref);
+
+      await updateProfile(user, { photoURL: newPhotoURL });
+      setPhotoURL(newPhotoURL);
+      
+      toast({
+        title: "Foto de perfil atualizada!",
+        description: "Sua nova foto foi salva.",
+      });
+
+    } catch (error) {
+      console.error("Error uploading photo: ", error);
+      toast({
+        variant: "destructive",
+        title: "Erro no Upload",
+        description: "Não foi possível enviar sua foto. Tente novamente.",
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const onSubmit = async (data: ProfileFormValues) => {
     if (!user || !userDocRef) {
@@ -237,12 +277,13 @@ function ProfileCard() {
         <CardContent className="grid gap-6">
             <div className="flex flex-col items-center gap-4">
                  <Avatar className="w-24 h-24">
-                    {user?.photoURL && <AvatarImage src={user.photoURL} alt={user.displayName || 'Avatar'} />}
+                    {photoURL && <AvatarImage src={photoURL} alt={user?.displayName || 'Avatar'} />}
                     <AvatarFallback>{user?.displayName?.charAt(0) || user?.email?.charAt(0)}</AvatarFallback>
                 </Avatar>
-                <Button type="button" variant="outline" disabled>
-                    <Upload className="mr-2 h-4 w-4" />
-                    Alterar Foto (Em breve)
+                <Input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
+                <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
+                    {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                    {isUploading ? 'Enviando...' : 'Alterar Foto'}
                 </Button>
             </div>
             <div className="grid gap-2">
@@ -342,7 +383,7 @@ function InterpreterProfileCard() {
         if (interpreterProfile) {
             reset({
                 ...interpreterProfile,
-                languages: interpreterProfile.languages.join(', '),
+                languages: Array.isArray(interpreterProfile.languages) ? interpreterProfile.languages.join(', ') : '',
             });
         }
     }, [interpreterProfile, reset]);
@@ -390,7 +431,7 @@ function InterpreterProfileCard() {
                             name="languages"
                             control={control}
                             render={({ field }) => (
-                                <Input id="languages" placeholder="Ex: Inglês, Espanhol" {...field} />
+                                <Input id="languages" placeholder="Ex: Inglês, Espanhol" {...field} value={Array.isArray(field.value) ? field.value.join(', ') : field.value} />
                             )}
                         />
                         <p className="text-sm text-muted-foreground">Separe os idiomas por vírgula.</p>
@@ -526,3 +567,5 @@ function AccountActionsCard() {
         </Card>
     );
 }
+
+    

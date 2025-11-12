@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "User": {
@@ -68,7 +69,7 @@
         },
         "interpreterType": {
           "type": "string",
-          "description": "Type of interpreter used for the meeting (e.g., human, automatic, hybrid)."
+          "description": "Type of interpreter used for the meeting (e.g., human)."
         },
         "userId": {
           "type": "string",
