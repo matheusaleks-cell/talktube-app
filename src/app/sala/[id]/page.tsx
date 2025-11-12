@@ -399,7 +399,7 @@ export default function MeetingRoomPage() {
           }
         }
       );
-      // CORREÇÃO 4: Nome da variável corrigido de 'answersUnscribes' para 'offersUnsubscribe'
+      // CORREÇÃO 4: Nome da variável corrigido
       unsubscribes.current.push(offersUnsubscribe);
     };
 
