@@ -338,14 +338,22 @@ export default function MeetingRoomPage() {
         uid: user.uid,
         joinedAt: serverTimestamp(),
       };
-      setDoc(memberDocRef, memberData).catch((error) => {
+      
+      // CORREÇÃO 3: Usar await/catch para garantir que o documento de membro foi criado antes de continuar.
+      try {
+        await setDoc(memberDocRef, memberData);
+      } catch (error) {
+        console.error('Error setting member document:', error);
         const contextualError = new FirestorePermissionError({
           operation: 'create',
           path: memberDocRef.path,
           requestResourceData: memberData,
         });
         errorEmitter.emit('permission-error', contextualError);
-      });
+        // Se a criação do membro falhar, saia do setup sem continuar com WebRTC
+        cleanup(false); 
+        return;
+      }
 
       const membersUnsubscribe = onSnapshot(
         collection(meetingDocRef, 'members'),
@@ -391,6 +399,7 @@ export default function MeetingRoomPage() {
           }
         }
       );
+      // CORREÇÃO 4: Nome da variável corrigido de 'answersUnscribes' para 'offersUnsubscribe'
       unsubscribes.current.push(offersUnsubscribe);
     };
 
