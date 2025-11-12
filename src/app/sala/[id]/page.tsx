@@ -155,6 +155,11 @@ export default function MeetingRoomPage() {
   
   // Flag para controle de execução única
   const isSetupRunning = React.useRef(false); 
+  const localStreamRef = React.useRef(localStream); // Referência para o stream local no useCallback
+
+  React.useEffect(() => {
+    localStreamRef.current = localStream;
+  }, [localStream]);
 
   const meetingDocRef = useMemoFirebase(
     () => (firestore && meetingId ? doc(firestore, 'meetings', meetingId) : null),
@@ -186,7 +191,7 @@ export default function MeetingRoomPage() {
     unsubscribes.current = [];
     
     // Garantir que as trilhas sejam paradas
-    localStream?.getTracks().forEach((track) => track.stop());
+    localStreamRef.current?.getTracks().forEach((track) => track.stop()); // Usar ref para stream
     setLocalStream(null);
 
     peerConnections.current.forEach((pc) => pc.close());
@@ -228,7 +233,7 @@ export default function MeetingRoomPage() {
               }
           });
 
-          const currentStream = localStream ? localStream.clone() : new MediaStream();
+          const currentStream = localStreamRef.current ? localStreamRef.current.clone() : new MediaStream();
           currentStream.getTracks().filter(t => t.kind === kind).forEach(t => {
             currentStream.removeTrack(t);
             t.stop();
@@ -244,11 +249,10 @@ export default function MeetingRoomPage() {
             };
           }
       }
-  }, [localStream, isSharingScreen]); // Add dependencies
+  }, [isSharingScreen]); 
 
   const toggleScreenShare = React.useCallback(() => { 
-    // If localStream is null or tracks are stopped, prompt the user for permission again
-    if (!localStream || localStream.getTracks().length === 0) {
+    if (!localStreamRef.current || localStreamRef.current.getTracks().length === 0) {
         toast({ variant: 'destructive', title: 'Erro de Mídia', description: 'Por favor, inicie a câmera e o microfone primeiro.' });
         return;
     }
@@ -267,10 +271,9 @@ export default function MeetingRoomPage() {
         });
     } else {
         // Start screen sharing
-        navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }) // Request audio too for screen share
+        navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
         .then(screenStream => {
             replaceTrack(screenStream, 'video');
-            // If screen stream also has audio, replace audio track
             if (screenStream.getAudioTracks().length > 0) {
                 replaceTrack(screenStream, 'audio');
             }
@@ -286,7 +289,7 @@ export default function MeetingRoomPage() {
             });
         });
     }
-  }, [isSharingScreen, replaceTrack, toast, localStream]); // localStream added to dependencies
+  }, [isSharingScreen, replaceTrack, toast]);
 
   React.useEffect(() => {
     if (localVideoRef.current && localStream) {
@@ -295,23 +298,21 @@ export default function MeetingRoomPage() {
     }
   }, [localStream]);
   
-  // --- Funções WebRTC ---
-
-  // Corrigida: Garantir que as trilhas sejam adicionadas
-  const createPeerConnection = (peerId: string, stream: MediaStream) => {
+  // --- Funções WebRTC ISOLADAS ---
+  // CORREÇÃO: Estas funções são useCallbacks independentes para evitar loop de dependência
+  
+  const createPeerConnection = React.useCallback((peerId: string, stream: MediaStream) => {
     if (!user || !stream || !meetingDocRef) return;
 
     const pc = new RTCPeerConnection(servers);
     peerConnections.current.set(peerId, pc);
 
-    // CORREÇÃO ESSENCIAL: Adicionar trilhas locais (Audio/Video) ao PeerConnection para envio
     stream.getTracks().forEach((track) => pc.addTrack(track, stream)); 
     
     pc.ontrack = (event) => {
       setRemoteStreams((prev) => ({ ...prev, [peerId]: event.streams[0] }));
     };
 
-    // Coleção de candidatos ICE do CHAMADOR (Eu)
     const callerCandidatesCollection = collection(doc(meetingDocRef, 'members', user.uid), 'callerCandidates');
     pc.onicecandidate = (event) => {
       if (event.candidate) {
@@ -341,7 +342,6 @@ export default function MeetingRoomPage() {
     );
     unsubscribes.current.push(answersUnsubscribe);
 
-    // Coleção de candidatos ICE do RECEPTOR (o outro participante)
     const iceUnsubscribe = onSnapshot(
       collection(doc(meetingDocRef, 'members', peerId), 'calleeCandidates'),
       (snapshot) => {
@@ -353,23 +353,20 @@ export default function MeetingRoomPage() {
       }
     );
     unsubscribes.current.push(iceUnsubscribe);
-  };
+  }, [user, meetingDocRef]); // Dependências mínimas
 
-  // Corrigida: Garantir que as trilhas sejam adicionadas
-  const answerOffer = async (offerData: any, stream: MediaStream) => {
+  const answerOffer = React.useCallback(async (offerData: any, stream: MediaStream) => {
     if (!user || !stream || !meetingDocRef) return;
 
     const pc = new RTCPeerConnection(servers);
     peerConnections.current.set(offerData.callerId, pc);
 
-    // CORREÇÃO ESSENCIAL: Adicionar trilhas locais (Audio/Video) ao PeerConnection para envio
     stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
     pc.ontrack = (event) => {
       setRemoteStreams((prev) => ({...prev, [offerData.callerId]: event.streams[0]}));
     };
 
-    // Coleção de candidatos ICE do RECEPTOR (Eu)
     const calleeCandidatesCollection = collection(doc(meetingDocRef, 'members', user.uid), 'calleeCandidates');
     pc.onicecandidate = (event) => {
       if (event.candidate) {
@@ -385,7 +382,6 @@ export default function MeetingRoomPage() {
     const answerDocRef = doc(collection(meetingDocRef, 'answers'));
     setDoc(answerDocRef, answerPayload);
 
-    // Coleção de candidatos ICE do CHAMADOR (o outro participante)
     const iceUnsubscribe = onSnapshot(
       collection(doc(meetingDocRef, 'members', offerData.callerId), 'callerCandidates'),
       (snapshot) => {
@@ -397,7 +393,7 @@ export default function MeetingRoomPage() {
       }
     );
     unsubscribes.current.push(iceUnsubscribe);
-  };
+  }, [user, meetingDocRef]); // Dependências mínimas
   
   // --- useEffect Principal (Manter o Setup) ---
   React.useEffect(() => {
@@ -499,11 +495,15 @@ export default function MeetingRoomPage() {
             }
           });
           setParticipants(currentParticipants);
-
+          
+          // **CORREÇÃO CRÍTICA DE ON-SNAPSHOT**:
+          // Passamos o stream local para as funções WebRTC
+          const currentLocalStream = localStreamRef.current; 
+          
           currentParticipants.forEach((p) => {
             // Se um novo participante aparecer no Firestore, iniciamos a conexão P2P
-            if (p.id !== user.uid && !peerConnections.current.has(p.id)) {
-              createPeerConnection(p.id, localMediaStream!);
+            if (p.id !== user.uid && !peerConnections.current.has(p.id) && currentLocalStream) {
+              createPeerConnection(p.id, currentLocalStream);
             }
           });
 
@@ -554,7 +554,7 @@ export default function MeetingRoomPage() {
       isSetupRunning.current = false; 
       cleanup(); 
     };
-  }, [isUserLoading, user, firestore, meetingId, router, toast, cleanup, createPeerConnection, answerOffer]); // Adicionadas createPeerConnection/answerOffer às dependências
+  }, [isUserLoading, user, firestore, meetingId, router, toast, cleanup, createPeerConnection, answerOffer]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -598,9 +598,6 @@ export default function MeetingRoomPage() {
 
   const handleShare = () => {
     const meetingUrl = window.location.href;
-    // O comando abaixo está depreciado e pode falhar em iframes/ambientes restritos.
-    // document.execCommand('copy', false, meetingUrl); 
-    // É mais robusto usar navigator.clipboard.writeText, que o browser moderno suporta:
     if (navigator.clipboard && window.isSecureContext) {
       navigator.clipboard.writeText(meetingUrl)
         .then(() => {
@@ -611,15 +608,14 @@ export default function MeetingRoomPage() {
           toast({ variant: 'destructive', title: 'Erro ao Copiar', description: 'Por favor, copie o link manualmente.' });
         });
     } else {
-        // Fallback manual
         const textarea = document.createElement('textarea');
         textarea.value = meetingUrl;
-        textarea.style.position = 'fixed'; // Evita scroll
+        textarea.style.position = 'fixed'; 
         document.body.appendChild(textarea);
         textarea.focus();
         textarea.select();
         try {
-            document.execCommand('copy'); // Fallback para sistemas mais antigos
+            document.execCommand('copy'); 
             toast({ title: 'Link da Reunião Copiado!', description: 'Você pode compartilhar este link com os participantes.' });
         } catch (err) {
             toast({ variant: 'destructive', title: 'Erro ao Copiar', description: 'Por favor, copie o link manualmente.' });
