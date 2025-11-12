@@ -155,7 +155,7 @@ export default function MeetingRoomPage() {
   
   // Flag para controle de execução única
   const isSetupRunning = React.useRef(false); 
-  const localStreamRef = React.useRef(localStream); // Referência para o stream local no useCallback
+  const localStreamRef = React.useRef(localStream); 
 
   React.useEffect(() => {
     localStreamRef.current = localStream;
@@ -299,27 +299,43 @@ export default function MeetingRoomPage() {
   }, [localStream]);
   
   // --- Funções WebRTC ISOLADAS ---
-  // CORREÇÃO: Estas funções são useCallbacks independentes para evitar loop de dependência
   
+  // Corrigida: Recebe stream como argumento
   const createPeerConnection = React.useCallback((peerId: string, stream: MediaStream) => {
     if (!user || !stream || !meetingDocRef) return;
 
     const pc = new RTCPeerConnection(servers);
     peerConnections.current.set(peerId, pc);
 
+    // CORREÇÃO: Adicionar trilhas locais
     stream.getTracks().forEach((track) => pc.addTrack(track, stream)); 
     
     pc.ontrack = (event) => {
       setRemoteStreams((prev) => ({ ...prev, [peerId]: event.streams[0] }));
     };
+    
+    // Configuração de ICE Candidate Listeners (Receptor)
+    const iceUnsubscribe = onSnapshot(
+      collection(doc(meetingDocRef, 'members', peerId), 'calleeCandidates'),
+      (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === 'added') {
+            pc.addIceCandidate(new RTCIceCandidate(change.doc.data()));
+          }
+        });
+      }
+    );
+    unsubscribes.current.push(iceUnsubscribe);
 
+    // Configuração de ICE Candidate Sender (Eu)
     const callerCandidatesCollection = collection(doc(meetingDocRef, 'members', user.uid), 'callerCandidates');
     pc.onicecandidate = (event) => {
       if (event.candidate) {
         addDoc(callerCandidatesCollection, event.candidate.toJSON());
       }
     };
-
+    
+    // Inicia a Oferta
     pc.createOffer()
       .then((offer) => {
         pc.setLocalDescription(offer);
@@ -341,32 +357,23 @@ export default function MeetingRoomPage() {
       }
     );
     unsubscribes.current.push(answersUnsubscribe);
+  }, [user, meetingDocRef]); 
 
-    const iceUnsubscribe = onSnapshot(
-      collection(doc(meetingDocRef, 'members', peerId), 'calleeCandidates'),
-      (snapshot) => {
-        snapshot.docChanges().forEach((change) => {
-          if (change.type === 'added') {
-            pc.addIceCandidate(new RTCIceCandidate(change.doc.data()));
-          }
-        });
-      }
-    );
-    unsubscribes.current.push(iceUnsubscribe);
-  }, [user, meetingDocRef]); // Dependências mínimas
-
+  // Corrigida: Recebe stream como argumento
   const answerOffer = React.useCallback(async (offerData: any, stream: MediaStream) => {
     if (!user || !stream || !meetingDocRef) return;
 
     const pc = new RTCPeerConnection(servers);
     peerConnections.current.set(offerData.callerId, pc);
 
+    // CORREÇÃO: Adicionar trilhas locais
     stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
     pc.ontrack = (event) => {
       setRemoteStreams((prev) => ({...prev, [offerData.callerId]: event.streams[0]}));
     };
 
+    // Configuração de ICE Candidate Sender (Eu)
     const calleeCandidatesCollection = collection(doc(meetingDocRef, 'members', user.uid), 'calleeCandidates');
     pc.onicecandidate = (event) => {
       if (event.candidate) {
@@ -374,14 +381,7 @@ export default function MeetingRoomPage() {
       }
     };
 
-    await pc.setRemoteDescription(new RTCSessionDescription(offerData.offer));
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
-
-    const answerPayload = { answer, from: user.uid, callerId: offerData.callerId };
-    const answerDocRef = doc(collection(meetingDocRef, 'answers'));
-    setDoc(answerDocRef, answerPayload);
-
+    // Configuração de ICE Candidate Listener (Chamador)
     const iceUnsubscribe = onSnapshot(
       collection(doc(meetingDocRef, 'members', offerData.callerId), 'callerCandidates'),
       (snapshot) => {
@@ -393,7 +393,15 @@ export default function MeetingRoomPage() {
       }
     );
     unsubscribes.current.push(iceUnsubscribe);
-  }, [user, meetingDocRef]); // Dependências mínimas
+
+    await pc.setRemoteDescription(new RTCSessionDescription(offerData.offer));
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+
+    const answerPayload = { answer, from: user.uid, callerId: offerData.callerId };
+    const answerDocRef = doc(collection(meetingDocRef, 'answers'));
+    setDoc(answerDocRef, answerPayload);
+  }, [user, meetingDocRef]); 
   
   // --- useEffect Principal (Manter o Setup) ---
   React.useEffect(() => {
@@ -526,8 +534,11 @@ export default function MeetingRoomPage() {
       const offersUnsubscribe = onSnapshot(
         query(collection(meetingDocRef, 'offers'), where('calleeId', '==', user.uid)),
         async (snapshot) => {
+          // CORREÇÃO: Usar o localMediaStream do escopo da função, que é garantido
+          const currentLocalStream = localMediaStream; 
+
           for (const offerDoc of snapshot.docs) {
-            await answerOffer(offerDoc.data(), localMediaStream!);
+            await answerOffer(offerDoc.data(), currentLocalStream!);
             await deleteDoc(offerDoc.ref);
           }
         }
