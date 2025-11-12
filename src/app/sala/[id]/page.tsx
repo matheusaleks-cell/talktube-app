@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -176,7 +175,8 @@ export default function MeetingRoomPage() {
     }
   }, [messages]);
 
-  const cleanup = React.useCallback(async () => {
+  // CORREÇÃO 1: Adiciona shouldRedirect para controlar o redirecionamento.
+  const cleanup = React.useCallback(async (shouldRedirect: boolean = true) => {
     console.log('Running cleanup...');
 
     unsubscribes.current.forEach((unsub) => unsub());
@@ -209,7 +209,10 @@ export default function MeetingRoomPage() {
       }
     }
 
-    router.push('/dashboard/meetings');
+    // Apenas redireciona se for um evento de "saída" intencional ou de desmontagem normal
+    if (shouldRedirect) {
+        router.push('/dashboard/meetings');
+    }
   }, [user, meetingDocRef, router, localStream, firestore]);
   
   const replaceTrack = React.useCallback((stream: MediaStream, kind: 'video' | 'audio') => {
@@ -276,6 +279,7 @@ export default function MeetingRoomPage() {
     }
   }, [localStream]);
 
+  // CORREÇÃO 2: Modifica o useEffect principal
   React.useEffect(() => {
     if (isUserLoading) return;
     if (!user) {
@@ -310,6 +314,8 @@ export default function MeetingRoomPage() {
           description:
             'Precisamos de acesso à sua câmera e microfone para entrar na sala.',
         });
+        // CHAMA CLEANUP COM shouldRedirect=false PARA LIMPAR CONEXÕES SEM REDIRECIONAR
+        cleanup(false); 
         return;
       }
       
@@ -485,9 +491,10 @@ export default function MeetingRoomPage() {
     setupMediaAndJoin();
     window.addEventListener('beforeunload', cleanup);
     
+    // ATENÇÃO: É IMPORTANTE QUE 'cleanup' ESTEJA NAS DEPENDÊNCIAS
     return () => {
       window.removeEventListener('beforeunload', cleanup);
-      cleanup();
+      cleanup(); 
     };
   }, [isUserLoading, user, firestore, meetingId, router, toast, cleanup]);
 
@@ -533,11 +540,34 @@ export default function MeetingRoomPage() {
 
   const handleShare = () => {
     const meetingUrl = window.location.href;
-    navigator.clipboard.writeText(meetingUrl);
-    toast({
-      title: 'Link da Reunião Copiado!',
-      description: 'Você pode compartilhar este link com os participantes.',
-    });
+    // O comando abaixo está depreciado e pode falhar em iframes/ambientes restritos.
+    // document.execCommand('copy', false, meetingUrl); 
+    // É mais robusto usar navigator.clipboard.writeText, que o browser moderno suporta:
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(meetingUrl)
+        .then(() => {
+          toast({ title: 'Link da Reunião Copiado!', description: 'Você pode compartilhar este link com os participantes.' });
+        })
+        .catch(err => {
+          console.error('Falha ao copiar:', err);
+          toast({ variant: 'destructive', title: 'Erro ao Copiar', description: 'Por favor, copie o link manualmente.' });
+        });
+    } else {
+        // Fallback manual
+        const textarea = document.createElement('textarea');
+        textarea.value = meetingUrl;
+        textarea.style.position = 'fixed'; // Evita scroll
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        try {
+            document.execCommand('copy'); // Fallback para sistemas mais antigos
+            toast({ title: 'Link da Reunião Copiado!', description: 'Você pode compartilhar este link com os participantes.' });
+        } catch (err) {
+            toast({ variant: 'destructive', title: 'Erro ao Copiar', description: 'Por favor, copie o link manualmente.' });
+        }
+        document.body.removeChild(textarea);
+    }
   };
 
   if (pageLoading) {
@@ -888,7 +918,7 @@ export default function MeetingRoomPage() {
           <Button
             variant="destructive"
             className="rounded-full px-6 py-6"
-            onClick={cleanup}
+            onClick={() => cleanup(true)}
           >
             <div className="flex items-center">
               <PhoneOff className="h-6 w-6 md:mr-2" />
@@ -900,5 +930,3 @@ export default function MeetingRoomPage() {
     </div>
   );
 }
-
-    
