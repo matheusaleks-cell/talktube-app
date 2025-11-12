@@ -216,7 +216,7 @@ export default function MeetingRoomPage() {
     if (shouldRedirect) {
         router.push('/dashboard/meetings');
     }
-  }, [user, meetingDocRef, router, firestore]); // localStream removido das dependências para evitar loop de limpeza
+  }, [user, meetingDocRef, router, firestore]);
   
   const replaceTrack = React.useCallback((stream: MediaStream, kind: 'video' | 'audio') => {
       const newTrack = kind === 'video' ? stream.getVideoTracks()[0] : stream.getAudioTracks()[0];
@@ -246,39 +246,52 @@ export default function MeetingRoomPage() {
       }
   }, [localStream, isSharingScreen]); // Add dependencies
 
-  const toggleScreenShare = React.useCallback(async () => {
+  const toggleScreenShare = React.useCallback(() => { 
+    // If localStream is null or tracks are stopped, prompt the user for permission again
+    if (!localStream || localStream.getTracks().length === 0) {
+        toast({ variant: 'destructive', title: 'Erro de Mídia', description: 'Por favor, inicie a câmera e o microfone primeiro.' });
+        return;
+    }
+
     if (isSharingScreen) {
         // Stop screen sharing and revert to webcam
-        try {
-            const webcamStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        navigator.mediaDevices.getUserMedia({ video: true })
+        .then(webcamStream => {
             replaceTrack(webcamStream, 'video');
             setIsSharingScreen(false);
             toast({ title: 'Compartilhamento de tela encerrado.' });
-        } catch (error) {
+        })
+        .catch(error => {
             console.error('Error switching back to webcam:', error);
             toast({ variant: 'destructive', title: 'Erro ao voltar para a câmera' });
-        }
+        });
     } else {
         // Start screen sharing
-        try {
-            const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }) // Request audio too for screen share
+        .then(screenStream => {
             replaceTrack(screenStream, 'video');
+            // If screen stream also has audio, replace audio track
+            if (screenStream.getAudioTracks().length > 0) {
+                replaceTrack(screenStream, 'audio');
+            }
             setIsSharingScreen(true);
             toast({ title: 'Você está compartilhando sua tela.' });
-        } catch (error) {
+        })
+        .catch(error => {
             console.error('Error starting screen share:', error);
             toast({
                 variant: 'destructive',
                 title: 'Compartilhamento de Tela Falhou',
                 description: 'Não foi possível iniciar o compartilhamento de tela.',
             });
-        }
+        });
     }
-  }, [isSharingScreen, replaceTrack, toast]);
+  }, [isSharingScreen, replaceTrack, toast, localStream]); // localStream added to dependencies
 
   React.useEffect(() => {
     if (localVideoRef.current && localStream) {
       localVideoRef.current.srcObject = localStream;
+      localVideoRef.current.play().catch(e => console.log('Autoplay blocked:', e));
     }
   }, [localStream]);
 
@@ -299,6 +312,102 @@ export default function MeetingRoomPage() {
 
     let localMediaStream: MediaStream | null = null;
     let setupComplete = false;
+    
+    const createPeerConnection = (peerId: string, stream: MediaStream) => {
+      if (!user || !stream || !meetingDocRef) return;
+
+      const pc = new RTCPeerConnection(servers);
+      peerConnections.current.set(peerId, pc);
+
+      // CORREÇÃO: Adicionar trilhas locais ao PeerConnection
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream)); 
+      
+      pc.ontrack = (event) => {
+        setRemoteStreams((prev) => ({ ...prev, [peerId]: event.streams[0] }));
+      };
+
+      const callerCandidatesCollection = collection(doc(meetingDocRef, 'members', user.uid), 'callerCandidates');
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          addDoc(callerCandidatesCollection, event.candidate.toJSON());
+        }
+      };
+
+      pc.createOffer()
+        .then((offer) => {
+          pc.setLocalDescription(offer);
+          const offerPayload = { offer, callerId: user.uid, calleeId: peerId };
+          const offerDocRef = doc(collection(meetingDocRef, 'offers'));
+          setDoc(offerDocRef, offerPayload);
+        });
+
+      const answersUnsubscribe = onSnapshot(
+        query(collection(meetingDocRef, 'answers'), where('callerId', '==', user.uid), where('from', '==', peerId)),
+        async (snapshot) => {
+          for (const docSnapshot of snapshot.docs) {
+            const data = docSnapshot.data();
+            if (data?.answer && !pc.currentRemoteDescription) {
+              await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+              await deleteDoc(docSnapshot.ref);
+            }
+          }
+        }
+      );
+       unsubscribes.current.push(answersUnsubscribe);
+
+      const iceUnsubscribe = onSnapshot(
+        collection(doc(meetingDocRef, 'members', peerId), 'calleeCandidates'),
+        (snapshot) => {
+          snapshot.docChanges().forEach((change) => {
+            if (change.type === 'added') {
+              pc.addIceCandidate(new RTCIceCandidate(change.doc.data()));
+            }
+          });
+        }
+      );
+       unsubscribes.current.push(iceUnsubscribe);
+    };
+
+    const answerOffer = async (offerData: any, stream: MediaStream) => {
+      if (!user || !stream || !meetingDocRef) return;
+
+      const pc = new RTCPeerConnection(servers);
+      peerConnections.current.set(offerData.callerId, pc);
+
+      // CORREÇÃO: Adicionar trilhas locais ao PeerConnection
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+
+      pc.ontrack = (event) => {
+        setRemoteStreams((prev) => ({...prev, [offerData.callerId]: event.streams[0]}));
+      };
+
+      const calleeCandidatesCollection = collection(doc(meetingDocRef, 'members', user.uid), 'calleeCandidates');
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          addDoc(calleeCandidatesCollection, event.candidate.toJSON());
+        }
+      };
+
+      await pc.setRemoteDescription(new RTCSessionDescription(offerData.offer));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+
+      const answerPayload = { answer, from: user.uid, callerId: offerData.callerId };
+      const answerDocRef = doc(collection(meetingDocRef, 'answers'));
+      setDoc(answerDocRef, answerPayload);
+
+      const iceUnsubscribe = onSnapshot(
+        collection(doc(meetingDocRef, 'members', offerData.callerId), 'callerCandidates'),
+        (snapshot) => {
+          snapshot.docChanges().forEach((change) => {
+            if (change.type === 'added') {
+              pc.addIceCandidate(new RTCIceCandidate(change.doc.data()));
+            }
+          });
+        }
+      );
+       unsubscribes.current.push(iceUnsubscribe);
+    };
     
     const setupMediaAndJoin = async () => {
       if (!firestore || !user || !meetingDocRef) return;
